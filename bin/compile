@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e
+
+compile_log="$1/nginx_buildpack_compile_log.txt"
+
+mkdir -p "$1/bin/"
+cp bin/start-nginx "$1/bin/"
+echo '-----> nginx-buildpack: Added start-nginx to app/bin' >> "$compile_log"
+
+mkdir -p "$1/config"
+
+# copy mime.types file from buildpack if client doesn't provide one
+if [[ ! -f "$1/config/mime.types" ]]; then
+	cp config/mime.types "$1/config/"
+	echo '-----> nginx-buildpack: Default mime.types copied to app/config.' >> "$compile_log"
+else
+	echo '-----> nginx-buildpack: Custom mime.types found in app/config.' >> "$compile_log"
+fi
+
+# copy nginx.conf.erb file from buildpack if client doesn't provide one
+if [[ ! -f "$1/config/nginx.conf.erb" ]]; then
+	cp config/nginx.conf.erb "$1/config/"
+	echo '-----> nginx-buildpack: Default config copied to app/config.' >> "$compile_log"
+else
+	echo '-----> nginx-buildpack: Custom config found in app/config.' >> "$compile_log"
+fi
+
+nginx_version=$(./bin/nginx-$STACK -V 2>&1 | head -1 | awk '{ print $NF }')
+
+# if there isn't a matching nginx version for the stack, then we need to build one from source
+if [[ ! -f "bin/nginx-$STACK" ]]; then
+  source bin/compile_from_source.sh
+  cp /tmp/nginx/sbin/nginx "$1/bin/nginx"
+  echo "-----> nginx-buildpack: Compiled Nginx binary for ${STACK}" >> "$compile_log"
+else
+ echo "-----> nginx-buildpack: Found Nginx binary for ${STACK}" >> "$compile_log"
+ cp "bin/nginx-$STACK" "$1/bin/nginx"
+fi
+echo "-----> nginx-buildpack: Installed ${nginx_version} to app/bin" >> "$compile_log"
+
+exit 0
